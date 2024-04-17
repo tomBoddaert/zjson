@@ -1,0 +1,23 @@
+[package]
+name = "zjson"
+version = "0.1.0"
+authors = ["Tom Boddaert <zjson@tomboddaert.com>"]
+edition = "2021"
+description = "Parse JSON with zero allocation."
+readme = "README.md"
+homepage = "https://github.com/tomboddaert/zjson/"
+repository = "https://github.com/tomboddaert/zjson/"
+license = "MIT OR Apache-2.0"
+keywords = ["json", "parser", "no_std", "no-std"]
+categories = ["parser-implementations", "no-std", "encoding"]
+
+[lib]
+name = "zjson"
+path = "lib/lib.rs"
+edition = "2021"
+crate-type = ["lib"]
+
+[features]
+default = ["std"]
+alloc = []
+std = ["alloc"]
