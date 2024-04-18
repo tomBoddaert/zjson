@@ -1,4 +1,6 @@
-use zjson::{any::Any, document::Document, literal};
+#![allow(clippy::approx_constant)]
+
+use zjson::{any::Any, document::Document};
 
 fn main() {
     let json = r#"{
@@ -10,10 +12,11 @@ fn main() {
     let mut document = Document::new(json);
 
     // root
-    let element = document.next().expect("failed to parse document");
-    let Some(Any::Object(mut root)) = element else {
-        panic!("failed to get an object from the document");
-    };
+    let mut root = document
+        .next()
+        .expect("failed to parse document")
+        .and_then(Any::object)
+        .expect("failed to get an object from the document");
 
     // "one"
     let element = root.next().expect("failed to parse object");
@@ -34,31 +37,37 @@ fn main() {
     assert_eq!(key, "array");
 
     // "array" -> 0
-    let array_element = array.next().expect("failed to parse array");
-    let Some(Any::Literal(mut r#true)) = array_element else {
-        panic!("failed to get a true value from the array");
-    };
-    let r#true = r#true.get().expect("failed to parse a true value");
+    let r#true = array
+        .next()
+        .expect("failed to parse array")
+        .and_then(Any::literal)
+        .expect("failed to get a true value from the array")
+        .get()
+        .expect("failed to parse a true value");
 
-    assert_eq!(r#true, literal::ParsedLiteral::True);
+    assert_eq!(r#true, true);
 
     // "array" -> 1
-    let array_element = array.next().expect("failed to parse array");
-    let Some(Any::Literal(mut r#false)) = array_element else {
-        panic!("failed to get a false value from the array");
-    };
-    let r#false = r#false.get().expect("failed to parse a false value");
+    let r#false = array
+        .next()
+        .expect("failed to parse array")
+        .and_then(Any::literal)
+        .expect("failed to get a false value from the array")
+        .get()
+        .expect("failed to parse a false value");
 
-    assert_eq!(r#false, literal::ParsedLiteral::False);
+    assert_eq!(r#false, false);
 
     // "array" -> 2
-    let array_element = array.next().expect("failed to parse array");
-    let Some(Any::Literal(mut null)) = array_element else {
-        panic!("failed to get a null value from the array");
-    };
-    let null = null.get().expect("failed to parse a null value");
+    let null = array
+        .next()
+        .expect("failed to parse array")
+        .and_then(Any::literal)
+        .expect("failed to get a null value from the array")
+        .get()
+        .expect("failed to parse a null value");
 
-    assert_eq!(null, literal::ParsedLiteral::Null);
+    assert_eq!(null, None);
 
     // finish "array"
     let array_element = array.next().expect("failed to parse array");
@@ -80,10 +89,7 @@ fn main() {
     let pi = pi.get().expect("failed to parse a number");
 
     assert_eq!(key, "pi");
-    #[allow(clippy::approx_constant)]
-    {
-        assert_eq!(pi.as_f32(), 3.14);
-    }
+    assert_eq!(pi, 3.14);
 
     // "object" -> "exp"
     let object_element = object.next().expect("failed to parse inner object");

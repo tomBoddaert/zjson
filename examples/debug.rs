@@ -1,4 +1,4 @@
-use zjson::{any::Any, document::Document, literal};
+use zjson::{any::Any, document::Document};
 
 fn main() {
     let json = r#"{
@@ -10,10 +10,11 @@ fn main() {
     let mut document = Document::new(json);
 
     // root
-    let element = document.next().expect("failed to parse document");
-    let Some(Any::Object(mut root)) = element else {
-        panic!("failed to get an object from the document");
-    };
+    let mut root = document
+        .next()
+        .expect("failed to parse document")
+        .and_then(Any::object)
+        .expect("failed to get an object from the document");
 
     // "one"
     let element = root.next().expect("failed to parse object");
@@ -34,14 +35,17 @@ fn main() {
     assert_eq!(key, "array");
 
     // "array" -> 0
-    let array_element = array.next().expect("failed to parse array");
-    let Some(Any::Literal(mut r#true)) = array_element else {
-        panic!("failed to get a false value from the array");
-    };
-    println!("{true:#?}");
-    let r#true = r#true.get().expect("failed to parse a false value");
+    let mut r#true = array
+        .next()
+        .expect("failed to parse array")
+        .and_then(Any::literal)
+        .expect("failed to get a true value from the array");
 
-    assert_eq!(r#true, literal::ParsedLiteral::True);
+    // debug print the true literal
+    println!("{true:#?}");
+
+    let r#true = r#true.get().expect("failed to parse a true value");
+    assert_eq!(r#true, true);
 
     // skip the rest of "array"
     array.finish().expect("failed to parse array");

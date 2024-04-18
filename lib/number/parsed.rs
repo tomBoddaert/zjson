@@ -8,7 +8,7 @@ pub struct ParsedNumber<'json> {
     json: &'json str,
 }
 
-macro_rules! parsed_number_fn {
+macro_rules! as_impl {
     ( $name:ident, $t:ty ) => {
         #[must_use]
         #[inline]
@@ -33,17 +33,17 @@ impl<'json> ParsedNumber<'json> {
         self.json
     }
 
-    parsed_number_fn!(as_u8, u8);
-    parsed_number_fn!(as_u16, u16);
-    parsed_number_fn!(as_u32, u32);
-    parsed_number_fn!(as_u64, u64);
-    parsed_number_fn!(as_u128, u128);
+    as_impl!(as_u8, u8);
+    as_impl!(as_u16, u16);
+    as_impl!(as_u32, u32);
+    as_impl!(as_u64, u64);
+    as_impl!(as_u128, u128);
 
-    parsed_number_fn!(as_i8, i8);
-    parsed_number_fn!(as_i16, i16);
-    parsed_number_fn!(as_i32, i32);
-    parsed_number_fn!(as_i64, i64);
-    parsed_number_fn!(as_i128, i128);
+    as_impl!(as_i8, i8);
+    as_impl!(as_i16, i16);
+    as_impl!(as_i32, i32);
+    as_impl!(as_i64, i64);
+    as_impl!(as_i128, i128);
 
     #[must_use]
     /// Get the number as a [`prim@f32`].
@@ -77,5 +77,136 @@ impl<'json> fmt::Display for ParsedNumber<'json> {
         }
 
         f.write_str(self.json)
+    }
+}
+
+macro_rules! eq_ord_impl {
+    ( $t:ty, $as:expr ) => {
+        impl PartialEq<$t> for ParsedNumber<'_> {
+            #[inline]
+            fn eq(&self, other: &$t) -> bool {
+                $as(*self).map_or(false, |n| n.eq(other))
+            }
+        }
+
+        impl PartialOrd<$t> for ParsedNumber<'_> {
+            #[inline]
+            fn partial_cmp(&self, other: &$t) -> Option<core::cmp::Ordering> {
+                $as(*self).map(|n| n.cmp(other))
+            }
+        }
+    };
+}
+
+eq_ord_impl!(u8, Self::as_u8);
+eq_ord_impl!(u16, Self::as_u16);
+eq_ord_impl!(u32, Self::as_u32);
+eq_ord_impl!(u64, Self::as_u64);
+eq_ord_impl!(u128, Self::as_u128);
+
+eq_ord_impl!(i8, Self::as_i8);
+eq_ord_impl!(i16, Self::as_i16);
+eq_ord_impl!(i32, Self::as_i32);
+eq_ord_impl!(i64, Self::as_i64);
+eq_ord_impl!(i128, Self::as_i128);
+
+impl PartialEq<f32> for ParsedNumber<'_> {
+    #[inline]
+    fn eq(&self, other: &f32) -> bool {
+        self.as_f32().eq(other)
+    }
+}
+
+impl PartialEq<f64> for ParsedNumber<'_> {
+    #[inline]
+    fn eq(&self, other: &f64) -> bool {
+        self.as_f64().eq(other)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::ParsedNumber;
+
+    macro_rules! test_eq {
+        ( $n:literal ) => {{
+            let n = $n;
+            let ns = n.to_string();
+
+            let parsed = ParsedNumber::new(&ns);
+            assert_eq!(parsed, n);
+        }};
+    }
+
+    #[test]
+    fn partial_eq_impl_zero() {
+        test_eq!(0_u8);
+        test_eq!(0_u16);
+        test_eq!(0_u32);
+        test_eq!(0_u64);
+        test_eq!(0_u128);
+
+        test_eq!(0_i8);
+        test_eq!(0_i16);
+        test_eq!(0_i32);
+        test_eq!(0_i64);
+        test_eq!(0_i128);
+
+        test_eq!(0_f32);
+        test_eq!(0_f64);
+    }
+
+    #[test]
+    fn partial_eq_impl_positive() {
+        test_eq!(53_u8);
+        test_eq!(53_u16);
+        test_eq!(53_u32);
+        test_eq!(53_u64);
+        test_eq!(53_u128);
+
+        test_eq!(53_i8);
+        test_eq!(53_i16);
+        test_eq!(53_i32);
+        test_eq!(53_i64);
+        test_eq!(53_i128);
+
+        test_eq!(53_f32);
+        test_eq!(53_f64);
+    }
+
+    #[test]
+    fn partial_eq_impl_negative() {
+        test_eq!(-53_i8);
+        test_eq!(-53_i16);
+        test_eq!(-53_i32);
+        test_eq!(-53_i64);
+        test_eq!(-53_i128);
+
+        test_eq!(-53_f32);
+        test_eq!(-53_f64);
+    }
+
+    #[test]
+    fn partial_eq_impl_decimal() {
+        test_eq!(53.19_f32);
+        test_eq!(53.19_f64);
+
+        test_eq!(-53.19_f32);
+        test_eq!(-53.19_f64);
+    }
+
+    #[test]
+    fn partial_eq_impl_exponent() {
+        test_eq!(53.19e5_f32);
+        test_eq!(53.19e5_f64);
+
+        test_eq!(-53.19e5_f32);
+        test_eq!(-53.19e5_f64);
+
+        test_eq!(53.19e-5_f32);
+        test_eq!(53.19e-5_f64);
+
+        test_eq!(-53.19e-5_f32);
+        test_eq!(-53.19e-5_f64);
     }
 }

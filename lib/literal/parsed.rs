@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{convert::identity, fmt, ops::Not};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 /// A parsed JSON literal.
@@ -55,5 +55,27 @@ impl fmt::Display for ParsedLiteral {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl PartialEq<bool> for ParsedLiteral {
+    #[inline]
+    fn eq(&self, other: &bool) -> bool {
+        match self {
+            Self::True => *other,
+            Self::False => !other,
+            Self::Null => false,
+        }
+    }
+}
+
+impl PartialEq<Option<bool>> for ParsedLiteral {
+    #[inline]
+    fn eq(&self, other: &Option<bool>) -> bool {
+        match self {
+            Self::True => other.map_or(false, identity),
+            Self::False => other.map_or(false, Not::not),
+            Self::Null => other.is_none(),
+        }
     }
 }
