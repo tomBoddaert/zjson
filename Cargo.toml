@@ -1,6 +1,6 @@
 [package]
 name = "zjson"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["Tom Boddaert <zjson@tomboddaert.com>"]
 edition = "2021"
 description = "Parse JSON with zero allocation."
