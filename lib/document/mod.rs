@@ -1,6 +1,6 @@
 use crate::{
     any::Any,
-    containers::{ParsePrompt, ParseStatus},
+    containers::{fff_impl, ParsePrompt, ParseStatus},
     debug::debug_impl,
     Parent,
 };
@@ -101,66 +101,14 @@ impl<'json> Document<'json> {
         Ok(())
     }
 
-    /// Runs `f` on the element in the document.
-    ///
-    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
-    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyDocumentError>
-    where
-        F: FnMut(&mut Any<'json, '_>) -> Result<(), ParseAnyDocumentError>,
-    {
-        while let Some(mut value) = self.next()? {
-            f(&mut value)?;
-            value.finish()?;
-        }
-
-        Ok(())
-    }
-
-    /// Applies `f` to the accumulator, passing in the element in the document.
-    ///
-    /// The initial value of the accumulator is `init`.
-    ///
-    /// [`Any::finish`] is automatically called on the value, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
-    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyDocumentError>
-    where
-        F: FnMut(B, &mut Any<'json, '_>) -> Result<B, ParseAnyDocumentError>,
-    {
-        let mut accumulator = init;
-
-        while let Some(mut value) = self.next()? {
-            accumulator = f(accumulator, &mut value)?;
-            value.finish()?;
-        }
-
-        Ok(accumulator)
-    }
-
-    /// Runs `f` on the element in the document.
-    ///
-    /// [`Any::finish`] is automatically called on the value, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
-    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyDocumentError>
-    where
-        F: FnMut(&mut Any<'json, '_>) -> Result<Option<B>, ParseAnyDocumentError>,
-    {
-        while let Some(mut value) = self.next()? {
-            let result = f(&mut value)?;
-            value.finish()?;
-
-            if result.is_some() {
-                return Ok(result);
-            }
-        }
-
-        Ok(None)
+    fff_impl! {
+        type: "document"
+        f(&mut Any<'json, '_>) -> Result<_, ParseAnyDocumentError>;
+        accumulator, mut value =>
+            f(&mut value),
+            f(accumulator, &mut value),
+            value;
+        ParseAnyDocumentError::Document
     }
 }
 

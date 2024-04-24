@@ -1,6 +1,6 @@
 use crate::{
     any::Any,
-    containers::{ParsePrompt, ParseStatus},
+    containers::{fff_impl, ParsePrompt, ParseStatus},
     debug::debug_impl,
     Parent,
 };
@@ -86,66 +86,14 @@ impl<'json> MultiDocument<'json> {
         Ok(())
     }
 
-    /// Runs `f` for each element in the multi-document.
-    ///
-    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
-    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyMultiDocumentError>
-    where
-        F: FnMut(&mut Any<'json, '_>) -> Result<(), ParseAnyMultiDocumentError>,
-    {
-        while let Some(mut value) = self.next()? {
-            f(&mut value)?;
-            value.finish()?;
-        }
-
-        Ok(())
-    }
-
-    /// Applies `f` to the accumulator, passing in each element in the multi-document.
-    ///
-    /// The initial value of the accumulator is `init`.
-    ///
-    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
-    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyMultiDocumentError>
-    where
-        F: FnMut(B, &mut Any<'json, '_>) -> Result<B, ParseAnyMultiDocumentError>,
-    {
-        let mut accumulator = init;
-
-        while let Some(mut value) = self.next()? {
-            accumulator = f(accumulator, &mut value)?;
-            value.finish()?;
-        }
-
-        Ok(accumulator)
-    }
-
-    /// Runs `f` on each element in the multi-document, stopping if `f` returns [`Some`].
-    ///
-    /// [`Any::finish`] is automatically called on each value, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
-    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyMultiDocumentError>
-    where
-        F: FnMut(&mut Any<'json, '_>) -> Result<Option<B>, ParseAnyMultiDocumentError>,
-    {
-        while let Some(mut value) = self.next()? {
-            let result = f(&mut value)?;
-            value.finish()?;
-
-            if result.is_some() {
-                return Ok(result);
-            }
-        }
-
-        Ok(None)
+    fff_impl! {
+        type: "multi-document"
+        f(&mut Any<'json, '_>) -> Result<_, ParseAnyMultiDocumentError>;
+        accumulator, mut value =>
+            f(&mut value),
+            f(accumulator, &mut value),
+            value;
+        ParseAnyMultiDocumentError::MultiDocument
     }
 }
 

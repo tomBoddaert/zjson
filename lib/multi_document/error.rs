@@ -28,7 +28,7 @@ impl std::error::Error for ParseMultiDocumentError {}
 /// The error returned when finishing parsing a [`MultiDocument`](super::MultiDocument) fails.
 pub enum ParseAnyMultiDocumentError {
     /// Parsing the document failed.
-    Document(ParseMultiDocumentError),
+    MultiDocument(ParseMultiDocumentError),
     /// Parsing a child failed.
     Any(any::ParseAnyError),
 }
@@ -37,7 +37,7 @@ impl fmt::Display for ParseAnyMultiDocumentError {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Document(err) => err.fmt(f),
+            Self::MultiDocument(err) => err.fmt(f),
             Self::Any(err) => err.fmt(f),
         }
     }
@@ -48,7 +48,7 @@ impl std::error::Error for ParseAnyMultiDocumentError {
     #[inline]
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(match self {
-            Self::Document(err) => err,
+            Self::MultiDocument(err) => err,
             Self::Any(err) => err,
         })
     }
@@ -57,7 +57,7 @@ impl std::error::Error for ParseAnyMultiDocumentError {
 impl From<ParseMultiDocumentError> for ParseAnyMultiDocumentError {
     #[inline]
     fn from(value: ParseMultiDocumentError) -> Self {
-        Self::Document(value)
+        Self::MultiDocument(value)
     }
 }
 

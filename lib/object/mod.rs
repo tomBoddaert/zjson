@@ -1,6 +1,6 @@
 use crate::{
     any::{Any, ParseAnyError},
-    containers::ParseStatus,
+    containers::{fff_impl, ParseStatus},
     debug::debug_impl,
     string::{self, ParsedString, String},
     Parent,
@@ -119,66 +119,15 @@ impl<'json, 'p> Object<'json, 'p> {
         Ok(())
     }
 
-    /// Runs `f` for each key, value pair in the object.
-    ///
-    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this object or if `f` returns an error, a [`ParseAnyError`] is returned.
-    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyError>
-    where
-        F: FnMut(ParsedString<'json>, &mut Any<'json, '_>) -> Result<(), ParseAnyError>,
-    {
-        while let Some((key, mut value)) = self.next()? {
-            f(key, &mut value)?;
-            value.finish()?;
-        }
-
-        Ok(())
-    }
-
-    /// Applies `f` to the accumulator, passing in each key, value pair in the object.
-    ///
-    /// The initial value of the accumulator is `init`.
-    ///
-    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyError`] is returned.
-    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyError>
-    where
-        F: FnMut(B, ParsedString<'json>, &mut Any<'json, '_>) -> Result<B, ParseAnyError>,
-    {
-        let mut accumulator = init;
-
-        while let Some((key, mut value)) = self.next()? {
-            accumulator = f(accumulator, key, &mut value)?;
-            value.finish()?;
-        }
-
-        Ok(accumulator)
-    }
-
-    /// Runs `f` for each key, value pair in the object, stopping if `f` returns [`Some`].
-    ///
-    /// [`Any::finish`] is automatically called on each value iterated over, so it is not needed in `f`.
-    ///
-    /// # Errors
-    /// If parsing fails in this object or if `f` returns an error, a [`ParseAnyError`] is returned.
-    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyError>
-    where
-        F: FnMut(ParsedString<'json>, &mut Any<'json, '_>) -> Result<Option<B>, ParseAnyError>,
-    {
-        while let Some((key, mut value)) = self.next()? {
-            let result = f(key, &mut value)?;
-            value.finish()?;
-
-            if result.is_some() {
-                return Ok(result);
-            }
-        }
-
-        Ok(None)
+    fff_impl! {
+        type: "object"
+        value: "key, value pair"
+        f(ParsedString<'json>, &mut Any<'json, '_>) -> Result<_, ParseAnyError>;
+        accumulator, (key, mut value) =>
+            f(key, &mut value),
+            f(accumulator, key, &mut value),
+            value;
+        ParseAnyError::Object
     }
 }
 
