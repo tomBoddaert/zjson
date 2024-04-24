@@ -48,6 +48,8 @@ pub mod string;
 
 mod containers;
 mod status;
+#[cfg(test)]
+mod test_parent;
 
 trait Parent<'json> {
     fn set_remaining<'a>(&'a mut self, remaining: &'json str)

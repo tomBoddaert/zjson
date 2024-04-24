@@ -85,6 +85,151 @@ impl<'json> MultiDocument<'json> {
 
         Ok(())
     }
+
+    /// Runs `f` for each element in the multi-document.
+    ///
+    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
+    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyMultiDocumentError>
+    where
+        F: FnMut(&mut Any<'json, '_>) -> Result<(), ParseAnyMultiDocumentError>,
+    {
+        while let Some(mut value) = self.next()? {
+            f(&mut value)?;
+            value.finish()?;
+        }
+
+        Ok(())
+    }
+
+    /// Applies `f` to the accumulator, passing in each element in the multi-document.
+    ///
+    /// The initial value of the accumulator is `init`.
+    ///
+    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
+    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyMultiDocumentError>
+    where
+        F: FnMut(B, &mut Any<'json, '_>) -> Result<B, ParseAnyMultiDocumentError>,
+    {
+        let mut accumulator = init;
+
+        while let Some(mut value) = self.next()? {
+            accumulator = f(accumulator, &mut value)?;
+            value.finish()?;
+        }
+
+        Ok(accumulator)
+    }
 }
 
 debug_impl!("MultiDocument", MultiDocument<'json>, no_parents);
+
+#[cfg(test)]
+mod test {
+    use super::{MultiDocument, ParseMultiDocumentError};
+
+    #[test]
+    fn parse_string() {
+        let expected = "Hello, World!";
+        let json = format!("\"{expected}\"");
+
+        let mut document = MultiDocument::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+        assert!(document.next().expect("failed to parse document").is_none());
+    }
+
+    #[test]
+    fn multiple_values() {
+        let expected = "Hello, World!";
+        let expected2 = "s2";
+        let json = format!("\"{expected}\"\"s2\"");
+
+        let mut document = MultiDocument::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no more values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected2);
+
+        assert!(document.next().expect("failed to parse document").is_none());
+    }
+
+    #[test]
+    fn empty() {
+        let mut document = MultiDocument::new("");
+        let value = document.next().expect("failed to parse document");
+
+        assert!(value.is_none());
+    }
+
+    #[test]
+    fn parse_invalid() {
+        let invalid = 'j';
+        let json = invalid.to_string();
+        let mut document = MultiDocument::new(&json);
+
+        let error = document
+            .next()
+            .expect_err("failed to return error after parsing invalid document");
+
+        assert_eq!(error, ParseMultiDocumentError::InvalidElement(invalid));
+    }
+
+    #[test]
+    fn invalid_after_value() {
+        let expected = "Hello, World!";
+        let invalid = 'j';
+        let json = format!("\"{expected}\"{invalid}");
+
+        let mut document = MultiDocument::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+
+        let error = document
+            .next()
+            .expect_err("failed to return error after parsing invalid document");
+
+        assert_eq!(error, ParseMultiDocumentError::InvalidElement(invalid));
+    }
+}

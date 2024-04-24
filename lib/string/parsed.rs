@@ -1,4 +1,4 @@
-use core::{fmt, hash, str};
+use core::{fmt, hash, iter::FusedIterator, str};
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
@@ -17,6 +17,13 @@ impl<'json> ParsedString<'json> {
     #[inline]
     pub(super) const fn new(json: &'json str) -> Self {
         Self { json }
+    }
+
+    #[must_use]
+    #[inline]
+    /// Returns [`true`] if the string has zero characters.
+    pub const fn is_empty(self) -> bool {
+        self.json.is_empty()
     }
 
     #[must_use]
@@ -127,7 +134,26 @@ impl<'json> Iterator for Chars<'json> {
 
         panic!("ran out of characters whilst parsing an escape in a parsed string");
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let bytes = self.json.as_str().len();
+
+        let min = if bytes < 6 {
+            // max-len-character: 4 byte utf-8
+            (bytes + 3) / 4
+        } else if bytes < 12 {
+            // max-len-character: 6 byte unicode escape
+            (bytes + 5) / 6
+        } else {
+            // max-len-character: 12 byte surrogate pair
+            (bytes + 11) / 12
+        };
+
+        (min, Some(bytes))
+    }
 }
+
+impl FusedIterator for Chars<'_> {}
 
 impl<'json> fmt::Debug for Chars<'json> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -17,7 +17,7 @@ impl Machine {
 
             Self::Escape(machine) => Ok(match machine.apply(c)? {
                 Status::Parsing(machine) => Some(Self::Escape(machine)),
-                Status::Done(_) => None,
+                Status::Done(_) => Some(Self::In),
             }),
         }
     }
@@ -130,5 +130,57 @@ impl LowMachine {
 
             _ => Err(ParseStringError::MissingLowSurrogate { high }),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{EscapeMachine, Machine};
+
+    #[test]
+    fn escaped_quotes() {
+        let mut machine = Machine::In;
+
+        machine = machine
+            .apply('\\')
+            .expect("failed to apply '\\' to machine")
+            .expect("expected machine to continue");
+        assert_eq!(machine, Machine::Escape(EscapeMachine::Awaiting));
+
+        machine = machine
+            .apply('"')
+            .expect("failed to apply '\"' to machine")
+            .expect("expected machine to continue");
+        assert_eq!(machine, Machine::In);
+    }
+
+    #[test]
+    fn string() {
+        let mut machine = Machine::In;
+
+        for c in "Hello, World!".chars() {
+            machine = machine
+                .apply(c)
+                .expect("failed to apply character to machine")
+                .expect("expected machine to continue");
+        }
+
+        let result = machine.apply('"').expect("failed to apply '\"' to machine");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn escaped_string() {
+        let mut machine = Machine::In;
+
+        for c in r#"Hello\" World!"#.chars() {
+            machine = machine
+                .apply(c)
+                .expect("failed to apply character to machine")
+                .expect("expected machine to continue");
+        }
+
+        let result = machine.apply('"').expect("failed to apply '\"' to machine");
+        assert!(result.is_none());
     }
 }

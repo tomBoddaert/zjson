@@ -95,6 +95,148 @@ impl<'json, 'p> Array<'json, 'p> {
 
         Ok(())
     }
+
+    /// Runs `f` for each element in the array.
+    ///
+    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this array or if `f` returns an error, a [`ParseAnyError`] is returned.
+    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyError>
+    where
+        F: FnMut(&mut Any<'json, '_>) -> Result<(), ParseAnyError>,
+    {
+        while let Some(mut value) = self.next()? {
+            f(&mut value)?;
+            value.finish()?;
+        }
+
+        Ok(())
+    }
+
+    /// Applies `f` to the accumulator, passing in each element in the array.
+    ///
+    /// The initial value of the accumulator is `init`.
+    ///
+    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this array or if `f` returns an error, a [`ParseAnyError`] is returned.
+    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyError>
+    where
+        F: FnMut(B, &mut Any<'json, '_>) -> Result<B, ParseAnyError>,
+    {
+        let mut accumulator = init;
+
+        while let Some(mut value) = self.next()? {
+            accumulator = f(accumulator, &mut value)?;
+            value.finish()?;
+        }
+
+        Ok(accumulator)
+    }
 }
 
 debug_impl!("Array", Array<'json, 'p>);
+
+#[cfg(test)]
+mod test {
+    use crate::test_parent::TestParent;
+
+    use super::ParseArrayError;
+
+    #[test]
+    fn empty() {
+        let mut parent = TestParent::new("]");
+        let mut array = parent.array();
+
+        let value = array.next().expect("failed to parse array");
+        assert!(value.is_none());
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn string() {
+        let expected_value = "value1";
+        let json = format!("\"{expected_value}\"]");
+
+        let mut parent = TestParent::new(&json);
+        let mut array = parent.array();
+
+        let value = array
+            .next()
+            .expect("failed to parse array")
+            .expect("failed to get value from array")
+            .string()
+            .expect("failed to get string from array")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(value, expected_value);
+
+        let next = array.next().expect("failed to parse array");
+        assert!(next.is_none());
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn invalid() {
+        let invalid = 'j';
+        let json = invalid.to_string();
+
+        let mut parent = TestParent::new(&json);
+        let mut array = parent.array();
+
+        let error = array
+            .next()
+            .expect_err("failed to return error from invalid array");
+
+        assert_eq!(
+            error,
+            ParseArrayError::InvalidElement {
+                c: invalid,
+                or_end: true
+            }
+        );
+
+        assert_eq!(parent.remaining, json);
+    }
+
+    #[test]
+    fn invalid_after_valid() {
+        let expected = "value1";
+        let invalid = 'j';
+
+        let json = format!("\"{expected}\", {invalid}");
+
+        let mut parent = TestParent::new(&json);
+        let mut array = parent.array();
+
+        let value = array
+            .next()
+            .expect("failed to parse array")
+            .expect("failed to get value from array")
+            .string()
+            .expect("failed to get string from array")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(value, expected);
+
+        let error = array
+            .next()
+            .expect_err("failed to return error from invalid array");
+
+        assert_eq!(
+            error,
+            ParseArrayError::InvalidElement {
+                c: invalid,
+                or_end: false
+            }
+        );
+
+        assert_eq!(parent.remaining, json);
+    }
+}

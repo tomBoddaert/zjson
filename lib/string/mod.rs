@@ -54,3 +54,80 @@ impl<'json, 'p> String<'json, 'p> {
 }
 
 debug_impl!("String", String<'json, 'p>);
+
+#[cfg(test)]
+mod test {
+    use crate::test_parent::TestParent;
+
+    use super::ParseStringError;
+
+    #[test]
+    fn empty() {
+        let mut parent = TestParent::new("\"");
+        let mut string = parent.string();
+
+        let value = string.get().expect("failed to parse string");
+        assert!(value.is_empty());
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn string() {
+        let expected_value = "value1";
+        let json = format!("{expected_value}\"");
+
+        let mut parent = TestParent::new(&json);
+        let mut string = parent.string();
+
+        let value = string.get().expect("failed to parse string");
+
+        assert_eq!(value, expected_value);
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn escape() {
+        let expected = " \" \\ / \x08 \x0c \n \r \t ";
+        let json = r#" \" \\ \/ \b \f \n \r \t ""#;
+
+        let mut parent = TestParent::new(json);
+        let mut string = parent.string();
+
+        let value = string.get().expect("failed to parse string");
+
+        assert_eq!(value, expected);
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn unicode_escape() {
+        let expected = "ü";
+        let json = r#"\u00fc""#;
+
+        let mut parent = TestParent::new(json);
+        let mut string = parent.string();
+
+        let value = string.get().expect("failed to parse string");
+
+        assert_eq!(value, expected);
+
+        assert!(parent.remaining.is_empty());
+    }
+
+    #[test]
+    fn terminated() {
+        let json = "j";
+
+        let mut parent = TestParent::new(json);
+        let mut string = parent.string();
+
+        let error = string
+            .get()
+            .expect_err("failed to return error from invalid string");
+
+        assert_eq!(error, ParseStringError::UnexpectedEnd);
+    }
+}

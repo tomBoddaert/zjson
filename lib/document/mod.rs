@@ -100,6 +100,144 @@ impl<'json> Document<'json> {
 
         Ok(())
     }
+
+    /// Runs `f` on the element in the document.
+    ///
+    /// [`Any::finish`] is automatically called on all values, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
+    pub fn for_each<F>(&mut self, mut f: F) -> Result<(), ParseAnyDocumentError>
+    where
+        F: FnMut(&mut Any<'json, '_>) -> Result<(), ParseAnyDocumentError>,
+    {
+        while let Some(mut value) = self.next()? {
+            f(&mut value)?;
+            value.finish()?;
+        }
+
+        Ok(())
+    }
+
+    /// Applies `f` to the accumulator, passing in the element in the document.
+    ///
+    /// The initial value of the accumulator is `init`.
+    ///
+    /// [`Any::finish`] is automatically called on the value, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
+    pub fn fold<B, F>(&mut self, init: B, mut f: F) -> Result<B, ParseAnyDocumentError>
+    where
+        F: FnMut(B, &mut Any<'json, '_>) -> Result<B, ParseAnyDocumentError>,
+    {
+        let mut accumulator = init;
+
+        while let Some(mut value) = self.next()? {
+            accumulator = f(accumulator, &mut value)?;
+            value.finish()?;
+        }
+
+        Ok(accumulator)
+    }
 }
 
 debug_impl!("Document", Document<'json>, no_parents);
+
+#[cfg(test)]
+mod test {
+    use super::{Document, ParseDocumentError};
+
+    #[test]
+    fn parse_string() {
+        let expected = "Hello, World!";
+        let json = format!("\"{expected}\"");
+
+        let mut document = Document::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+        assert!(document.next().expect("failed to parse document").is_none());
+    }
+
+    #[test]
+    fn multiple_values() {
+        let expected = "Hello, World!";
+        let json = format!("\"{expected}\"\"s2\"");
+
+        let mut document = Document::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+
+        let error = document
+            .next()
+            .expect_err("failed to return error after parsing invalid document");
+
+        assert_eq!(error, ParseDocumentError::UnexpectedCharacter('"'));
+    }
+
+    #[test]
+    fn empty() {
+        let error = Document::new("")
+            .next()
+            .expect_err("failed to return error after parsing empty document");
+
+        assert_eq!(error, ParseDocumentError::UnexpectedEnd);
+    }
+
+    #[test]
+    fn parse_invalid() {
+        let invalid = 'j';
+        let json = invalid.to_string();
+        let mut document = Document::new(&json);
+
+        let error = document
+            .next()
+            .expect_err("failed to return error after parsing invalid document");
+
+        assert_eq!(error, ParseDocumentError::InvalidElement(invalid));
+    }
+
+    #[test]
+    fn invalid_after_value() {
+        let expected = "Hello, World!";
+        let invalid = 'j';
+        let json = format!("\"{expected}\"{invalid}");
+
+        let mut document = Document::new(&json);
+
+        let parsed = document
+            .next()
+            .expect("failed to parse document")
+            .expect("got no values in document")
+            .string()
+            .expect("expected string from document")
+            .get()
+            .expect("failed to parse string");
+
+        assert_eq!(parsed, expected);
+
+        let error = document
+            .next()
+            .expect_err("failed to return error after parsing invalid document");
+
+        assert_eq!(error, ParseDocumentError::UnexpectedCharacter(invalid));
+    }
+}
