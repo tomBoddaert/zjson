@@ -158,6 +158,28 @@ impl<'json, 'p> Object<'json, 'p> {
 
         Ok(accumulator)
     }
+
+    /// Runs `f` for each key, value pair in the object, stopping if `f` returns [`Some`].
+    ///
+    /// [`Any::finish`] is automatically called on each value iterated over, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this object or if `f` returns an error, a [`ParseAnyError`] is returned.
+    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyError>
+    where
+        F: FnMut(ParsedString<'json>, &mut Any<'json, '_>) -> Result<Option<B>, ParseAnyError>,
+    {
+        while let Some((key, mut value)) = self.next()? {
+            let result = f(key, &mut value)?;
+            value.finish()?;
+
+            if result.is_some() {
+                return Ok(result);
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 debug_impl!("Object", Object<'json, 'p>);

@@ -125,6 +125,28 @@ impl<'json> MultiDocument<'json> {
 
         Ok(accumulator)
     }
+
+    /// Runs `f` on each element in the multi-document, stopping if `f` returns [`Some`].
+    ///
+    /// [`Any::finish`] is automatically called on each value, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this multi-document or if `f` returns an error, a [`ParseAnyMultiDocumentError`] is returned.
+    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyMultiDocumentError>
+    where
+        F: FnMut(&mut Any<'json, '_>) -> Result<Option<B>, ParseAnyMultiDocumentError>,
+    {
+        while let Some(mut value) = self.next()? {
+            let result = f(&mut value)?;
+            value.finish()?;
+
+            if result.is_some() {
+                return Ok(result);
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 debug_impl!("MultiDocument", MultiDocument<'json>, no_parents);

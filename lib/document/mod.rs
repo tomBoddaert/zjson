@@ -140,6 +140,28 @@ impl<'json> Document<'json> {
 
         Ok(accumulator)
     }
+
+    /// Runs `f` on the element in the document.
+    ///
+    /// [`Any::finish`] is automatically called on the value, so it is not needed in `f`.
+    ///
+    /// # Errors
+    /// If parsing fails in this document or if `f` returns an error, a [`ParseAnyDocumentError`] is returned.
+    pub fn find<B, F>(&mut self, mut f: F) -> Result<Option<B>, ParseAnyDocumentError>
+    where
+        F: FnMut(&mut Any<'json, '_>) -> Result<Option<B>, ParseAnyDocumentError>,
+    {
+        while let Some(mut value) = self.next()? {
+            let result = f(&mut value)?;
+            value.finish()?;
+
+            if result.is_some() {
+                return Ok(result);
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 debug_impl!("Document", Document<'json>, no_parents);
